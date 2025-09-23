@@ -81,9 +81,14 @@
 </data>
  </layer>
  <objectgroup id="3" name="Object Layer 1">
-  <object id="14" gid="222" x="411.516" y="304.888" width="24.2981" height="20.6101">
+  <object id="14" gid="222" x="411.516" y="304.888" width="16" height="16">
    <properties>
     <property name="item_type" value="treasure"/>
+   </properties>
+  </object>
+  <object id="15" name="food" type="food" x="160" y="160" width="16" height="16">
+   <properties>
+    <property name="item_type" value="food"/>
    </properties>
   </object>
  </objectgroup>
