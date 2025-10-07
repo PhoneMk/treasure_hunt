@@ -8,7 +8,10 @@ from .treasure import Treasure
 from .food import Food
 from .pathfinder import Pathfinder
 from .hud import HUD
+from .communication import SerialComm
 from collections import deque
+
+
 
 def load_tmx(path):
     return pytmx.util_pygame.load_pygame(path)
@@ -25,7 +28,12 @@ class Game:
         # self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
         self.clock = pygame.time.Clock()
-
+        # Serial Communication
+        self.serial = SerialComm(port='COM5', baudrate=115200, on_message=self.handle_message)
+        self.serial.connect()
+        # Joystick input queue
+        self.joystick_queue = deque()
+        
         # Load map
         tmx_path = os.path.join(self.script_dir, "assets/maps/treasure.tmx")
         self.tmx_data = load_tmx(tmx_path)
@@ -76,7 +84,22 @@ class Game:
         self.success_message = ""
         self.message_timer = 0
         self.game_over = False
+        self.food_collected = 0
 
+
+    def handle_message(self, msg):
+        """Handles joystick and other STM32 messages."""
+        if len(msg) == 1 and msg in "UDLR":
+            self.joystick_queue.append(msg)
+            # print(f"Joystick move: {msg}")
+        else:
+            # print(f"STM32 says: {msg}")
+            if msg.startswith("F:"):
+                food_value = msg.split(":")[1]
+                print(f"Food detected: {food_value}")
+            elif msg.startswith("S:"):
+                status = msg.split(":")[1]
+                print(f"Status: {status}")
     def find_nearest_treasure(self):
         nearest_path = None
         nearest_distance = float('inf')
@@ -112,12 +135,25 @@ class Game:
                             if self.AUTO_MOVE:
                                 self.current_path, self.current_stats = self.find_nearest_treasure()
                         elif not self.AUTO_MOVE:
+                            # Optional: keyboard movement
                             new_x, new_y = self.player.tile_x, self.player.tile_y
                             if event.key == pygame.K_UP: new_y -= 1
                             if event.key == pygame.K_DOWN: new_y += 1
                             if event.key == pygame.K_LEFT: new_x -= 1
                             if event.key == pygame.K_RIGHT: new_x += 1
                             self.player.move_to_tile(new_x, new_y, self.collision_layer, self.energy_layer)
+                            self.serial.send(f"E:{int(self.player.energy)}")
+
+
+            if not self.game_over and not self.AUTO_MOVE and self.joystick_queue:
+                move = self.joystick_queue.popleft()
+                new_x, new_y = self.player.tile_x, self.player.tile_y
+                if move == 'U': new_y -= 1
+                elif move == 'D': new_y += 1
+                elif move == 'L': new_x -= 1
+                elif move == 'R': new_x += 1
+                self.player.move_to_tile(new_x, new_y, self.collision_layer, self.energy_layer)
+                self.serial.send(f"E:{int(self.player.energy)}")
 
             if not self.game_over:
                 self.player.is_moving = False
@@ -154,6 +190,7 @@ class Game:
                         treasure.collected = True
                         self.success_message = "🎉 Treasure Collected!"
                         self.message_timer = pygame.time.get_ticks()
+                        self.serial.send("S:Treasure Found")
                         if self.AUTO_MOVE:
                             self.current_path, self.current_stats = self.find_nearest_treasure()
 
@@ -161,9 +198,12 @@ class Game:
                     food.draw(self.screen)
                     if not food.collected and self.player.rect.colliderect(food.rect):
                         food.collected = True
+                        self.food_collected += 1
                         self.player.energy = min(100, self.player.energy + 4)
                         self.success_message = "🍖 Food Collected!"
                         self.message_timer = pygame.time.get_ticks()
+
+                        self.serial.send(f"F:{self.food_collected}")
 
                 if self.current_stats:
                     self.stats_memory = self.current_stats.copy()
@@ -180,7 +220,7 @@ class Game:
 
             elapsed = (pygame.time.get_ticks() - self.message_timer) / 1000
             message = self.success_message if elapsed < 2 else ""
-            self.hud.draw(self.screen, self.player, self.AUTO_MOVE, self.stats_memory, message)
+            self.hud.draw(self.screen, self.player, self.AUTO_MOVE, self.stats_memory, self.food_collected, message)
 
             if self.game_over:
                 font = pygame.font.Font(None, 74)

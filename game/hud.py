@@ -57,7 +57,7 @@ class HUD:
         center = pygame.transform.scale(self.panel_slices['center'], (rect.width - 2 * b, rect.height - 2 * b))
         surface.blit(center, (rect.left + b, rect.top + b))
 
-    def draw(self, surface, player, ai_status, stats, message=""):
+    def draw(self, surface, player, ai_status, stats, food_collected, message=""):
         sidebar_x = surface.get_width() - self.sidebar_width
 
         # Background
@@ -73,6 +73,13 @@ class HUD:
         value_rect = energy_value.get_rect(topright=(sidebar_x + self.sidebar_width - 35, y_offset)) # Increased padding
         surface.blit(energy_label, (x_pos, y_offset))
         surface.blit(energy_value, value_rect)
+        y_offset += 40
+
+        food_label = self.font.render("Food:", True, self.TEXT_COLOR)
+        food_value = self.font.render(f"{food_collected}", True, self.TEXT_COLOR)
+        value_rect = food_value.get_rect(topright=(sidebar_x + self.sidebar_width - 35, y_offset))
+        surface.blit(food_label, (x_pos, y_offset))
+        surface.blit(food_value, value_rect)
         y_offset += 40
 
         # --- AI Status ---
