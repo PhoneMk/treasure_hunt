@@ -58,7 +58,7 @@ class Game:
         if self.game_level == 1:
             self.player = Player(player_img, 1, 1, self.tmx_data)
         elif self.game_level == 2:
-            self.player = Player(player_img, 13, 29, self.tmx_data)
+            self.player = Player(player_img, 1, 15, self.tmx_data)
 
         # Treasures
         treasure_img = pygame.image.load(os.path.join(self.script_dir, "assets/sprites/tile_0089.png")).convert_alpha()

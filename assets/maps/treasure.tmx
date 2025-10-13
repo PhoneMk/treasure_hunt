@@ -81,27 +81,12 @@
 </data>
  </layer>
  <objectgroup id="3" name="Object Layer 1">
-<object id="14" gid="222" x="450" y="250" width="16" height="16">
+  <object id="14" gid="222" x="450" y="250" width="16" height="16">
    <properties>
     <property name="item_type" value="treasure"/>
    </properties>
   </object>
-  <object id="15" name="food" type="food" x="32" y="48" width="16" height="16">
-   <properties>
-    <property name="item_type" value="food"/>
-   </properties>
-  </object>
-  <object id="16" name="food" type="food" x="96" y="80" width="16" height="16">
-   <properties>
-    <property name="item_type" value="food"/>
-   </properties>
-  </object>
   <object id="17" name="food" type="food" x="176" y="80" width="16" height="16">
-   <properties>
-    <property name="item_type" value="food"/>
-   </properties>
-  </object>
-  <object id="18" name="food" type="food" x="80" y="144" width="16" height="16">
    <properties>
     <property name="item_type" value="food"/>
    </properties>
@@ -116,22 +101,37 @@
     <property name="item_type" value="food"/>
    </properties>
   </object>
-  <object id="21" name="food" type="food" x="32" y="240" width="16" height="16">
+  <object id="15" name="food" type="food" x="32" y="64" width="16" height="16">
    <properties>
     <property name="item_type" value="food"/>
    </properties>
   </object>
-  <object id="22" name="food" type="food" x="432" y="240" width="16" height="16">
+  <object id="16" name="food" type="food" x="96" y="64" width="16" height="16">
    <properties>
     <property name="item_type" value="food"/>
    </properties>
   </object>
-  <object id="23" name="food" type="food" x="32" y="288" width="16" height="16">
+  <object id="18" name="food" type="food" x="80" y="160" width="16" height="16">
    <properties>
     <property name="item_type" value="food"/>
    </properties>
   </object>
-  <object id="24" name="food" type="food" x="288" y="288" width="16" height="16">
+  <object id="21" name="food" type="food" x="32" y="224" width="16" height="16">
+   <properties>
+    <property name="item_type" value="food"/>
+   </properties>
+  </object>
+  <object id="22" name="food" type="food" x="416" y="240" width="16" height="16">
+   <properties>
+    <property name="item_type" value="food"/>
+   </properties>
+  </object>
+  <object id="23" name="food" type="food" x="32" y="272" width="16" height="16">
+   <properties>
+    <property name="item_type" value="food"/>
+   </properties>
+  </object>
+  <object id="24" name="food" type="food" x="288" y="272" width="16" height="16">
    <properties>
     <property name="item_type" value="food"/>
    </properties>
