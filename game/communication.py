@@ -27,6 +27,7 @@ class SerialComm:
             print(f"Connected to {self.port} at {self.baudrate} baud.")
         except serial.SerialException as e:
             print(f"Serial error: {e}")
+            self.close()
 
     def _read_loop(self):
         """Continuously read bytes and handle messages."""
@@ -39,24 +40,12 @@ class SerialComm:
                         if self.buffer:
                             try:
                                 message = self.buffer.decode('utf-8').strip()
-                                if self.on_message:
+                                if self.on_message and message:
                                     self.on_message(message)
-                                else:
-                                    print(f"📥 Received: {message}")
                             except UnicodeDecodeError:
                                 print("Received non-UTF-8 data")
                             self.buffer = b""  # reset buffer
                     else:
-                        # Single character, immediately send to callback
-                        try:
-                            char = data.decode('utf-8')
-                            if self.on_message:
-                                self.on_message(char)
-                            else:
-                                print(f"📥 Received char: {char}")
-                        except UnicodeDecodeError:
-                            pass
-
                         # Append to buffer in case it's part of a longer message
                         self.buffer += data
             except serial.SerialException:
