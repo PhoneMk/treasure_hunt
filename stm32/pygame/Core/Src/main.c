@@ -20,6 +20,9 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "rng.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -27,6 +30,10 @@
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
 #include "string.h"
+
+#include "ILI9341_GFX.h"
+#include "ILI9341_STM32_Driver.h"
+#include "ILI9341_Touchscreen.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +48,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define ILI9341_COLOR565(r,g,b) ( ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b) >> 3) )
 
 /* USER CODE END PM */
 
@@ -51,9 +59,11 @@ uint8_t rx_buffer[100];
 uint8_t echo_buffer[100];
 static uint8_t rx_index = 0;
 uint8_t byte;
-volatile uint8_t echo_ready = 0;
-volatile uint8_t echo_length = 0;
+volatile uint8_t command_ready = 0;  // Flag when full command received
+volatile uint8_t command_length = 0;
 volatile uint8_t led_blink_flag = 0;
+volatile uint8_t buzz_flag = 0;
+volatile uint8_t joystick_flag = 0;
 uint16_t x;
 uint16_t y;
 volatile uint32_t readValue [2];
@@ -61,20 +71,25 @@ uint8_t state;
 uint16_t deadzone = 50;
 uint16_t mid_x = 3100;
 uint16_t mid_y = 3100;
+
+int food_count = 0;
+int energy_level = 0;
+char status_msg[50] = "Ready";
+
+
 char b [50];
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MPU_Config(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void Set_Buzzer_PWM(uint16_t duty);
 /* USER CODE END 0 */
 
 /**
@@ -88,8 +103,13 @@ int main(void)
 
   /* USER CODE END 1 */
 
-  /* MPU Configuration--------------------------------------------------------*/
-  MPU_Config();
+  /* Enable the CPU Cache */
+
+  /* Enable I-Cache---------------------------------------------------------*/
+  SCB_EnableICache();
+
+  /* Enable D-Cache---------------------------------------------------------*/
+  SCB_EnableDCache();
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -112,9 +132,40 @@ int main(void)
   MX_DMA_Init();
   MX_USART3_UART_Init();
   MX_ADC1_Init();
+  MX_RNG_Init();
+  MX_SPI5_Init();
+  MX_TIM1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  ILI9341_Init();
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)readValue, 2);
   HAL_UART_Receive_IT(&huart3, &byte, 1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+
+
+  ILI9341_Set_Rotation(SCREEN_HORIZONTAL_2);
+//  ILI9341_Fill_Screen(BLACK);
+//  ILI9341_Draw_Text("Treasure Hunt Ready!", 10, 10, WHITE, 2, BLACK);
+//  ILI9341_Draw_Text("Food: 0", 10, 40, GREEN, 2, BLACK);
+//  ILI9341_Draw_Text("Energy: 100", 10, 70, YELLOW, 2, BLACK);
+
+  // Draw dashboard frame
+  ILI9341_Fill_Screen(BLACK);
+
+  // Title
+  ILI9341_Draw_Text("Treasure Hunt", 10, 10, WHITE, 2, BLACK);
+
+  // Food Box
+  ILI9341_Draw_Filled_Rectangle_Coord(10, 40, 310, 70, DARKGREEN);
+  ILI9341_Draw_Text("Food: 0", 15, 45, WHITE, 2, DARKGREEN);
+
+  // Energy Box
+  ILI9341_Draw_Filled_Rectangle_Coord(10, 75, 310, 105, DARKYELLOW);
+  ILI9341_Draw_Text("Energy: 100", 15, 80, WHITE, 2, DARKYELLOW);
+
+  // Status Box
+  ILI9341_Draw_Filled_Rectangle_Coord(10, 110, 310, 140, DARKCYAN);
+  ILI9341_Draw_Text("Status: Ready", 15, 115, WHITE, 2, DARKCYAN);
 
   /* USER CODE END 2 */
 
@@ -123,27 +174,33 @@ int main(void)
   while (1)
   {
 
+	  if (command_ready) {
+	       // Echo back for testing with clear formatting
+	       HAL_UART_Transmit(&huart3, echo_buffer, command_length, 100);
+	       char buffer[50];
+	       // Update Food value
+	          ILI9341_Draw_Filled_Rectangle_Coord(80, 45, 220, 65, DARKGREEN);
+	          sprintf(buffer, "%d", food_count);
+	          ILI9341_Draw_Text(buffer, 80, 45, GREEN, 2, DARKGREEN);
 
-//      uint8_t byte;
-////      static uint8_t rx_index = 0;
-//
-//      while (HAL_UART_Receive(&huart3, &byte, 1, 10) == HAL_OK) {
-//          rx_buffer[rx_index++] = byte;
-//
-//          if (byte == '\n' || rx_index >= sizeof(rx_buffer)-1) {
-//        	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
-//        	  HAL_Delay(300);
-//        	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
-//
-//              rx_buffer[rx_index] = '\0'; // terminate string
-//              HAL_UART_Transmit(&huart3, rx_buffer, rx_index, HAL_MAX_DELAY); // echo
-//              rx_index = 0; // reset
-//          }
-//      }
-	  if (echo_ready) {
-	          HAL_UART_Transmit(&huart3, echo_buffer, echo_length, 100);
-	          echo_ready = 0;
-	      }
+	          // Update Energy value
+	          ILI9341_Draw_Filled_Rectangle_Coord(90, 80, 220, 100, DARKYELLOW);
+	          sprintf(buffer, "%d", energy_level);
+	          ILI9341_Draw_Text(buffer, 100, 80, YELLOW, 2, DARKYELLOW);
+
+	          // Update Status
+	          ILI9341_Draw_Filled_Rectangle_Coord(90, 115, 300, 135, DARKCYAN);
+	          ILI9341_Draw_Text(status_msg, 100, 115, CYAN, 2, DARKCYAN);
+	       command_ready = 0;
+	     }
+
+	  if (buzz_flag)
+	  {
+		  Set_Buzzer_PWM(50);   // 50% duty cycle, adjust volume
+		  HAL_Delay(300);
+		  Set_Buzzer_PWM(0);    // Turn off buzzer
+		  buzz_flag = 0;
+	  }
 
 	    if (led_blink_flag) {
 	        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
@@ -151,39 +208,42 @@ int main(void)
 	        HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
 	        led_blink_flag = 0;
 	    }
-	  x = (uint16_t) readValue[0];
-	  y = (uint16_t) readValue[1];
+	  if (joystick_flag) {
+		  x = (uint16_t) readValue[0];
+		  y = (uint16_t) readValue[1];
 
-	  state = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
-//	  sprintf(b, "X : %d, Y : %d, button: %d\r\n" ,x, y, state);
-//	  HAL_UART_Transmit(&huart3, (uint8_t*)b, strlen(b), HAL_MAX_DELAY);
-//	  HAL_Delay(300);
+		  state = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0);
+		  joystick_flag = 0;
+	//	  sprintf(b, "X : %d, Y : %d, button: %d\r\n" ,x, y, state);
+	//	  HAL_UART_Transmit(&huart3, (uint8_t*)b, strlen(b), HAL_MAX_DELAY);
+	//	  HAL_Delay(300);
 
-	  char dir = 'N'; // N = Neutral / no movement
+		  char dir = 'N'; // N = Neutral / no movement
 
-	 if (x > mid_x + deadzone)
-		 dir = 'R'; // right
-	 else if (x < mid_x - deadzone)
-		 dir = 'L'; // left
-	 else if (y > mid_y + deadzone)
-		 dir = 'U'; // up
-	 else if (y < mid_y - deadzone)
-		 dir = 'D'; // down
+		 if (x > mid_x + deadzone)
+			 dir = 'R'; // right
+		 else if (x < mid_x - deadzone)
+			 dir = 'L'; // left
+		 else if (y > mid_y + deadzone)
+			 dir = 'U'; // up
+		 else if (y < mid_y - deadzone)
+			 dir = 'D'; // down
 
-	 // Send only if movement detected
-	 if (dir != 'N')
-	 {
-		 HAL_UART_Transmit(&huart3, (uint8_t*)&dir, 1, HAL_MAX_DELAY);
-	 }
+		 // Send only if movement detected
+		 if (dir != 'N')
+		 {
+			char msg[3] = {dir, '\r', '\n'};
+			HAL_UART_Transmit(&huart3, (uint8_t*)msg, 3, HAL_MAX_DELAY);
+		 }
 
-	 // Send button state if pressed
-	 if (state == GPIO_PIN_RESET)
-	 {
-		 char b = 'B';
-		 HAL_UART_Transmit(&huart3, (uint8_t*)&b, 1, HAL_MAX_DELAY);
-	 }
-
-	     HAL_Delay(200);
+		 // Send button state if pressed
+		 if (state == GPIO_PIN_RESET)
+		 {
+			char msg[3] = {'B', '\r', '\n'};
+			HAL_UART_Transmit(&huart3, (uint8_t*)msg, 3, HAL_MAX_DELAY);
+		 }
+	  }
+	HAL_Delay(200);
 
 
 
@@ -250,58 +310,54 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void Set_Buzzer_PWM(uint16_t duty) {
+    // duty: 0-100 for 0% to 100%
+    if(duty > 100) duty = 100;
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, (htim2.Init.Period + 1) * duty / 100);
+}
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+    if(hadc->Instance == ADC1)
+    {
+        // Joystick values are ready in readValue array
+        joystick_flag = 1;
+        // Process joystick input here
+    }
+}
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-    if (huart->Instance == USART3)
-    {
-//    	HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
-        rx_buffer[rx_index++] = byte;
+	  if (huart->Instance == USART3)
+	  {
+	    rx_buffer[rx_index++] = byte;
 
-        if (byte == '\n' || rx_index >= sizeof(rx_buffer)-1) {
-        	led_blink_flag = 1;
+	    // Check for end of message
+	    if (byte == '\n' || rx_index >= sizeof(rx_buffer)-1) {
+	      led_blink_flag = 1;  // Visual confirmation
 
-            rx_buffer[rx_index] = '\0';
-            memcpy(echo_buffer, rx_buffer, rx_index);
-            echo_length = rx_index;
-            echo_ready = 1;
-            rx_index = 0;
+	      rx_buffer[rx_index] = '\0';
+	      memcpy(echo_buffer, rx_buffer, rx_index);
+	      command_length = rx_index;
+	      if (rx_buffer[0] == 'F' && rx_buffer[1] == ':') {
+			  food_count = atoi((char*)&rx_buffer[2]);
+		      command_ready = 1;
+		      buzz_flag = 1;
+		  }
+		  else if (rx_buffer[0] == 'E' && rx_buffer[1] == ':') {
+			  energy_level = atoi((char*)&rx_buffer[2]);
+		      command_ready = 1;
+		  }
+		  else if (rx_buffer[0] == 'S' && rx_buffer[1] == ':') {
+			  strcpy(status_msg, (char*)&rx_buffer[2]);
+		      command_ready = 1;
+		      buzz_flag = 1;
+		  }
+	      rx_index = 0;
+	    }
 
-        }
-
-        HAL_UART_Receive_IT(&huart3, &byte, 1);
+	    HAL_UART_Receive_IT(&huart3, &byte, 1);
     }
 }
 /* USER CODE END 4 */
-
- /* MPU Configuration */
-
-void MPU_Config(void)
-{
-  MPU_Region_InitTypeDef MPU_InitStruct = {0};
-
-  /* Disables the MPU */
-  HAL_MPU_Disable();
-
-  /** Initializes and configures the Region and the memory to be protected
-  */
-  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
-  MPU_InitStruct.Number = MPU_REGION_NUMBER0;
-  MPU_InitStruct.BaseAddress = 0x0;
-  MPU_InitStruct.Size = MPU_REGION_SIZE_4GB;
-  MPU_InitStruct.SubRegionDisable = 0x87;
-  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
-  MPU_InitStruct.AccessPermission = MPU_REGION_NO_ACCESS;
-  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
-  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
-  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
-  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
-
-  HAL_MPU_ConfigRegion(&MPU_InitStruct);
-  /* Enables the MPU */
-  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
-
-}
 
 /**
   * @brief  This function is executed in case of error occurrence.

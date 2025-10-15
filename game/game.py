@@ -292,6 +292,8 @@ class Game:
                 text = font.render("GAME OVER", True, (255, 0, 0))
                 text_rect = text.get_rect(center=(self.MAP_WIDTH / 2, self.MAP_HEIGHT / 2))
                 self.screen.blit(text, text_rect)
+                self.serial.close()
+
                 font = pygame.font.Font(None, 36)
                 text = font.render("Press 'R' to restart", True, (255, 255, 255))
                 text_rect = text.get_rect(center=(self.MAP_WIDTH / 2, self.MAP_HEIGHT / 2 + 50))
@@ -303,6 +305,7 @@ class Game:
                 text_rect = text.get_rect(center=(self.MAP_WIDTH / 2, self.MAP_HEIGHT / 2))
                 self.screen.blit(text, text_rect)
                 font = pygame.font.Font(None, 36)
+                self.serial.close()
                 text = font.render("Press 'N' to next level", True, (255, 255, 255))
                 text_rect = text.get_rect(center=(self.MAP_WIDTH / 2, self.MAP_HEIGHT / 2 + 50))
                 self.screen.blit(text, text_rect)
